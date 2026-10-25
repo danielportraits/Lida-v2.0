@@ -70,7 +70,21 @@ export async function initializeAuth() {
         const displayName = gate.querySelector('#auth-display-name').value.trim();
         const username = gate.querySelector('#auth-username').value.trim().toLowerCase();
         if (!/^[a-z0-9_]{3,20}$/.test(username)) throw new Error('El usuario debe tener entre 3 y 20 caracteres: letras, números o guion bajo.');
-        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username, display_name: displayName } } });
+      
+const redirectUrl = new URL('./', window.location.href).href;
+
+const { data, error } = await supabase.auth.signUp({
+  email,
+  password,
+  options: {
+    emailRedirectTo: redirectUrl,
+    data: {
+      username,
+      display_name: displayName
+    }
+  }
+});
+
         if (error) throw error;
         if (data.session) { await revealApp(data.session); }
         else message('Cuenta creada. Revisa tu correo para confirmar la dirección y luego inicia sesión aquí.');
