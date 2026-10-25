@@ -1,9 +1,9 @@
-const CACHE_NAME = "lida-shell-v9";
+const CACHE_NAME = "lida-shell-v10";
 const APP_SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./app.js", "./demo-data.js", "./storage.js",
+  "./app.js", "./demo-data.js", "./storage.js", "./supabase-auth.js", "./supabase-config.js",
   "./navigation.js", "./dialogs.js",
-  "./tokens.css", "./base.css", "./components.css",
+  "./tokens.css", "./base.css", "./components.css", "./supabase-auth.css",
   "./lida-mark.svg", "./lida-logo-original.png", "./lida-interface-reference.png"
 ];
 self.addEventListener("install", event => {

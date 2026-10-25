@@ -1,4 +1,8 @@
 import { readJSON, writeJSON } from "./storage.js";
+import { initializeAuth } from "./supabase-auth.js";
+
+// La autenticación se valida antes de inicializar el estado local de la interfaz.
+await initializeAuth();
 import { showView, setupNavigation } from "./navigation.js";
 import { openDialog, closeDialog, toast } from "./dialogs.js";
 
