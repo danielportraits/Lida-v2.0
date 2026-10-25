@@ -472,10 +472,21 @@ async function loadContactRequests() {
             .select("id")
             .maybeSingle();
 
-          if (updateError) throw updateError;
-          if (!updated) {
-            throw new Error("La solicitud ya no está pendiente o no se pudo actualizar.");
-          }
+         if (updateError) {
+  console.error("Error real de Supabase al actualizar:", updateError);
+  throw updateError;
+}
+
+if (!updated) {
+  console.error("La actualización no devolvió ninguna fila.", {
+    requestId: request.id,
+    currentUserId: user.id
+  });
+
+  throw new Error(
+    "Supabase no devolvió la solicitud actualizada. Revisa la consola."
+  );
+}
 
         
 const conversationId = await createSupabaseConversation(
