@@ -283,20 +283,46 @@ function openNewChat() {
         addButton.textContent = "Enviando solicitud…";
 
         try {
-          const { error: requestError } = await supabase
-            .from("contacts")
-            .insert({
-              requester_id: user.id,
-              addressee_id: profile.id,
-              status: "pending"
-            });
+          
+const { data: existing, error: existingError } = await supabase
+  .from("contacts")
+  .select("id, requester_id, addressee_id, status")
+  .or(
+    `and(requester_id.eq.${user.id},addressee_id.eq.${profile.id}),and(requester_id.eq.${profile.id},addressee_id.eq.${user.id})`
+  );
 
-          if (requestError) {
-            if (requestError.code === "23505") {
-              throw new Error("Ya existe una solicitud o contacto entre estas cuentas.");
-            }
-            throw requestError;
-          }
+if (existingError) throw existingError;
+
+if (existing?.some(contact => contact.status === "accepted")) {
+  result.textContent =
+    "Esta persona ya está entre tus contactos. La conversación aún debe configurarse.";
+  return;
+}
+
+if (existing?.some(contact => contact.status === "pending")) {
+  result.textContent =
+    "Ya existe una solicitud pendiente entre estas cuentas.";
+  return;
+}
+
+if (existing?.length) {
+  result.textContent =
+    "Existe una relación anterior entre estas cuentas. Necesitamos revisarla antes de enviar otra solicitud.";
+  return;
+}
+
+const { error: requestError } = await supabase
+  .from("contacts")
+  .insert({
+    requester_id: user.id,
+    addressee_id: profile.id,
+    status: "pending"
+  });
+
+if (requestError) throw requestError;
+
+result.textContent = "Solicitud de contacto enviada.";
+
 
           result.textContent = "Solicitud de contacto enviada.";
         } catch (error) {
