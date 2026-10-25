@@ -172,20 +172,128 @@ function renderFriends() {
   if (!list || !count) return;
   count.textContent = String(state.directory.length);
   list.innerHTML = friends.length ? friends.map(person => `<article class="friend-result"><span class="avatar">${esc(initials(person.name))}</span><div class="friend-result-copy"><strong>${esc(person.name)}</strong><small>${esc(person.handle)} · contacto local</small></div><button class="secondary-button" data-contact-chat="${esc(person.id)}">Mensaje</button><button class="icon-button" data-contact-remove="${esc(person.id)}" aria-label="Eliminar ${esc(person.name)}">×</button></article>`).join("") : `<div class="friend-empty">${query ? "No hay contactos que coincidan con la búsqueda." : "Todavía no has agregado contactos. Pulsa «Agregar persona» para guardar uno."}</div>`;
-}
+
 function openNewChat() {
-  openDialog(`<p class="eyebrow">COMUNIDAD LIDA</p><h2>Agregar persona</h2><p>Guarda un contacto usando su nombre de usuario. Importante: esta versión aún no está conectada a un servidor, así que esto no envía una solicitud a otra persona ni confirma que el usuario exista.</p><label class="field-label" for="contact-name">Nombre para mostrar</label><input id="contact-name" class="dialog-input" maxlength="40" placeholder="Ej. Alex"><label class="field-label" for="contact-handle">Nombre de usuario</label><div class="username-input-wrap"><span>@</span><input id="contact-handle" class="dialog-input" maxlength="20" placeholder="usuario" autocomplete="off" autocapitalize="none" spellcheck="false"></div><p class="registration-note">El contacto se guardará solo en este navegador. La búsqueda y las solicitudes entre cuentas se activarán al conectar el backend.</p><button class="primary-button full-width" id="save-contact">Guardar contacto</button>`);
-  $("#save-contact").addEventListener("click", () => {
-    const name = $("#contact-name").value.trim();
-    const handle = $("#contact-handle").value.trim().replace(/^@/, "").toLowerCase();
-    if (!name) { toast("Escribe el nombre para mostrar."); return; }
-    if (!/^[a-z0-9_]{3,20}$/.test(handle)) { toast("El usuario debe tener entre 3 y 20 caracteres: letras, números o guion bajo."); return; }
-    if (state.profile.handle && handle === state.profile.handle.replace(/^@/, "").toLowerCase()) { toast("Ese es tu propio usuario."); return; }
-    if (state.directory.some(person => person.handle.toLowerCase() === `@${handle}`)) { toast("Ese contacto ya está guardado."); return; }
-    state.directory.unshift({ id: `contact-${Date.now()}`, name, handle: `@${handle}`, addedAt: new Date().toISOString() });
-    persist(); renderFriends(); closeDialog(); toast("Contacto guardado en este dispositivo.");
+  openDialog(`
+    <p class="eyebrow">COMUNIDAD LIDA</p>
+    <h2>Buscar persona</h2>
+    <p>Busca una cuenta registrada usando su nombre de usuario.</p>
+
+    <label class="field-label" for="contact-handle">Nombre de usuario</label>
+    <div class="username-input-wrap">
+      <span>@</span>
+      <input
+        id="contact-handle"
+        class="dialog-input"
+        maxlength="20"
+        placeholder="usuario"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+      >
+    </div>
+
+    <button class="primary-button full-width" id="search-contact">
+      Buscar usuario
+    </button>
+    <div id="contact-search-result" aria-live="polite"></div>
+  `);
+
+  $("#search-contact").addEventListener("click", async () => {
+    const input = $("#contact-handle");
+    const result = $("#contact-search-result");
+    const button = $("#search-contact");
+
+    const handle = input.value.trim().replace(/^@/, "").toLowerCase();
+
+    if (!/^[a-z0-9_]{3,20}$/.test(handle)) {
+      toast("Escribe un usuario válido.");
+      return;
+    }
+
+    button.disabled = true;
+    result.textContent = "Buscando…";
+
+    try {
+      const {
+        data: { user },
+        error: userError
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error("Inicia sesión para buscar usuarios.");
+      }
+
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url, bio")
+        .eq("username", handle)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!profile) {
+        result.textContent = "No encontramos una cuenta con ese usuario.";
+        return;
+      }
+
+      if (profile.id === user.id) {
+        result.textContent = "Ese es tu propio usuario.";
+        return;
+      }
+
+      result.innerHTML = "";
+
+      const name = document.createElement("p");
+      name.textContent = profile.display_name || profile.username;
+
+      const username = document.createElement("p");
+      username.textContent = "@" + profile.username;
+
+      const addButton = document.createElement("button");
+      addButton.className = "primary-button full-width";
+      addButton.textContent = "Enviar solicitud de contacto";
+
+      result.append(name, username, addButton);
+
+      addButton.addEventListener("click", async () => {
+        addButton.disabled = true;
+        addButton.textContent = "Enviando…";
+
+        try {
+          const { error: requestError } = await supabase
+            .from("contacts")
+            .insert({
+              requester_id: user.id,
+              addressee_id: profile.id,
+              status: "pending"
+            });
+
+          if (requestError) {
+            if (requestError.code === "23505") {
+              throw new Error("Ya existe una solicitud o contacto entre estas cuentas.");
+            }
+            throw requestError;
+          }
+
+          toast("Solicitud de contacto enviada.");
+          closeDialog();
+        } catch (error) {
+          console.error("Error al enviar solicitud:", error);
+          toast(error.message || "No se pudo enviar la solicitud.");
+          addButton.disabled = false;
+          addButton.textContent = "Enviar solicitud de contacto";
+        }
+      });
+    } catch (error) {
+      console.error("Error al buscar usuario:", error);
+      result.textContent = error.message || "No se pudo realizar la búsqueda.";
+    } finally {
+      button.disabled = false;
+    }
   });
 }
+
 function openRegistration() {
   openDialog(`<div class="registration-mark"><img src="./lida-logo-original.png" alt="LIDA"></div><p class="eyebrow">BIENVENIDO A LIDA</p><h2>Personaliza tu cuenta</h2><p class="muted">Crea tu perfil con nombre visible y usuario único. Esta versión guarda la cuenta en este navegador; para que el usuario sea único en todos los dispositivos y pueda recibir mensajes reales hace falta conectar un servidor.</p><label class="field-label" for="register-name">Nombre para mostrar</label><input id="register-name" class="dialog-input" maxlength="50" placeholder="Tu nombre" autocomplete="name"><label class="field-label" for="register-handle">Nombre de usuario</label><div class="username-input-wrap"><span>@</span><input id="register-handle" class="dialog-input" maxlength="20" placeholder="tu_usuario" autocomplete="username" autocapitalize="none" spellcheck="false"></div><label class="field-label" for="register-bio">Biografía (opcional)</label><textarea id="register-bio" class="dialog-input" maxlength="160" rows="2" placeholder="Cuéntale algo a la comunidad"></textarea><button class="primary-button full-width" id="complete-registration">Guardar perfil y entrar</button>`);
   $("#complete-registration").addEventListener("click", () => {
