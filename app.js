@@ -477,13 +477,15 @@ async function loadContactRequests() {
             throw new Error("La solicitud ya no está pendiente o no se pudo actualizar.");
           }
 
-         const conversationId = await createSupabaseConversation(
+        
+const conversationId = await createSupabaseConversation(
   request.requester_id
 );
 
 console.log("Conversación creada:", conversationId);
 
-          if (conversationError) throw conversationError;
+
+          
 
           toast("Solicitud aceptada. Conversación creada.");
           await loadContactRequests();
