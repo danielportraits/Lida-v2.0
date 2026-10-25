@@ -173,6 +173,7 @@ function renderFriends() {
   count.textContent = String(state.directory.length);
   list.innerHTML = friends.length ? friends.map(person => `<article class="friend-result"><span class="avatar">${esc(initials(person.name))}</span><div class="friend-result-copy"><strong>${esc(person.name)}</strong><small>${esc(person.handle)} · contacto local</small></div><button class="secondary-button" data-contact-chat="${esc(person.id)}">Mensaje</button><button class="icon-button" data-contact-remove="${esc(person.id)}" aria-label="Eliminar ${esc(person.name)}">×</button></article>`).join("") : `<div class="friend-empty">${query ? "No hay contactos que coincidan con la búsqueda." : "Todavía no has agregado contactos. Pulsa «Agregar persona» para guardar uno."}</div>`;
 
+
 function openNewChat() {
   openDialog(`
     <p class="eyebrow">COMUNIDAD LIDA</p>
@@ -203,30 +204,26 @@ function openNewChat() {
     const input = $("#contact-handle");
     const result = $("#contact-search-result");
     const button = $("#search-contact");
-
     const handle = input.value.trim().replace(/^@/, "").toLowerCase();
 
     if (!/^[a-z0-9_]{3,20}$/.test(handle)) {
-      toast("Escribe un usuario válido.");
+      result.textContent = "Escribe un usuario válido (3–20 letras, números o guiones bajos).";
       return;
     }
 
     button.disabled = true;
-    result.textContent = "Buscando…";
+    result.textContent = "Buscando usuario…";
 
     try {
-      const {
-        data: { user },
-        error: userError
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } =
+        await supabase.auth.getUser();
 
-      if (userError || !user) {
-        throw new Error("Inicia sesión para buscar usuarios.");
-      }
+      if (authError) throw authError;
+      if (!user) throw new Error("Inicia sesión para buscar usuarios.");
 
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("id, username, display_name, avatar_url, bio")
+        .select("id, username, display_name")
         .eq("username", handle)
         .maybeSingle();
 
@@ -242,7 +239,7 @@ function openNewChat() {
         return;
       }
 
-      result.innerHTML = "";
+      result.replaceChildren();
 
       const name = document.createElement("p");
       name.textContent = profile.display_name || profile.username;
@@ -258,7 +255,7 @@ function openNewChat() {
 
       addButton.addEventListener("click", async () => {
         addButton.disabled = true;
-        addButton.textContent = "Enviando…";
+        addButton.textContent = "Enviando solicitud…";
 
         try {
           const { error: requestError } = await supabase
@@ -276,18 +273,17 @@ function openNewChat() {
             throw requestError;
           }
 
-          toast("Solicitud de contacto enviada.");
-          closeDialog();
+          result.textContent = "Solicitud de contacto enviada.";
         } catch (error) {
           console.error("Error al enviar solicitud:", error);
-          toast(error.message || "No se pudo enviar la solicitud.");
+          result.textContent = error.message || "No se pudo enviar la solicitud.";
           addButton.disabled = false;
-          addButton.textContent = "Enviar solicitud de contacto";
+          addButton.textContent = "Reintentar solicitud";
         }
       });
     } catch (error) {
       console.error("Error al buscar usuario:", error);
-      result.textContent = error.message || "No se pudo realizar la búsqueda.";
+      result.textContent = error.message || "No se pudo buscar el usuario.";
     } finally {
       button.disabled = false;
     }
