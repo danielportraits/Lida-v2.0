@@ -91,6 +91,45 @@ async function sendSupabaseMessage(conversationId, text) {
     throw new Error("Debes iniciar sesión para enviar mensajes.");
   }
 
+async function createSupabaseConversation(otherUserId) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error("Debes iniciar sesión para crear una conversación.");
+  }
+
+  if (!otherUserId || otherUserId === user.id) {
+    throw new Error("Selecciona otro usuario válido.");
+  }
+
+  const { data: conversation, error: conversationError } = await supabase
+    .from("conversations")
+    .insert({
+      created_by: user.id,
+      is_group: false,
+      title: null
+    })
+    .select("id")
+    .single();
+
+  if (conversationError) {
+    throw conversationError;
+  }
+
+  const { error: participantsError } = await supabase
+    .from("conversation_participants")
+    .insert([
+      { conversation_id: conversation.id, user_id: user.id },
+      { conversation_id: conversation.id, user_id: otherUserId }
+    ]);
+
+  if (participantsError) {
+    throw participantsError;
+  }
+
+  return conversation.id;
+}
+
   const { data, error } = await supabase
     .from("messages")
     .insert({
