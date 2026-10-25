@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050806">
+  <meta name="description" content="LIDA — conecta, comparte y descubre.">
+  <title>LIDA</title>
+  <link rel="icon" href="./lida-logo-original.png" type="image/png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./base.css">
+  <link rel="stylesheet" href="./components.css">
+</head>
+<body>
+  <div id="lida-splash" class="lida-splash" aria-label="LIDA está iniciando">
+    <img src="./lida-logo-original.png" alt="Logotipo original de LIDA">
+  </div>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#mensajes" aria-label="LIDA mensajes" onclick="document.querySelector('[data-view=chats]')?.classList.add('active')">
+        <img class="brand-logo" src="./lida-logo-original.png" alt=""><span class="brand-word">LIDA</span>
+      </a>
+      <div class="topbar-actions">
+        <button class="icon-button" id="search-button" aria-label="Buscar" title="Buscar">⌕</button>
+        <button class="icon-button" id="settings-shortcut" aria-label="Abrir configuración" title="Configuración">⚙</button><button class="avatar avatar-small" id="profile-shortcut" aria-label="Abrir perfil">D</button>
+      </div>
+    </header>
+
+    <main id="app-main" tabindex="-1">
+      <section class="view active" id="view-chats" data-view="chats">
+        <div class="section-heading">
+          <div><p class="eyebrow">TU ESPACIO</p><h1>Mensajes</h1></div>
+          <button class="primary-button" id="new-chat-button">＋ <span>Nuevo</span></button>
+        </div>
+        <label class="search-field"><span aria-hidden="true">⌕</span><input id="chat-search" type="search" placeholder="Buscar en tus conversaciones" autocomplete="off"></label>
+        <div class="filter-row" role="group" aria-label="Filtrar conversaciones">
+          <button class="filter-chip selected" data-filter="all">Todos</button>
+          <button class="filter-chip" data-filter="unread">No leídos</button>
+          <button class="filter-chip" data-filter="favorites">Favoritos</button>
+        </div>
+        <div id="chat-list" class="chat-list" aria-live="polite"></div>
+        <div class="empty-state hidden" id="chat-empty"><span class="empty-icon">◌</span><h2>No hay conversaciones</h2><p>Cuando empieces a conversar, aparecerán aquí.</p></div>
+      </section>
+
+      <section class="view" id="view-conversation" data-view="conversation">
+        <div class="conversation-header">
+          <button class="icon-button" id="back-to-chats" aria-label="Volver a Chats">←</button>
+          <div class="avatar" id="conversation-avatar">M</div>
+          <div class="conversation-person"><h1 id="conversation-name">Contacto</h1><p id="conversation-status">Disponible</p></div>
+          <button class="icon-button" aria-label="Llamar" id="call-audio" title="Llamada de voz">☎</button><button class="icon-button" aria-label="Videollamada" id="call-video" title="Videollamada">▣</button><button class="icon-button" aria-label="Más opciones" id="conversation-menu">⋯</button>
+        </div>
+        <div id="message-list" class="message-list" aria-live="polite"></div>
+        <div id="voice-waveform" class="voice-waveform hidden" aria-live="polite" aria-label="Grabando nota de voz"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><b>Grabando…</b></div>
+        <form id="message-form" class="composer">
+          <button type="button" class="icon-button composer-plus" aria-label="Stickers" id="sticker-button">☺</button>
+          <button type="button" class="icon-button voice-button" id="voice-note-button" aria-label="Grabar nota de voz" title="Nota de voz">🎙</button>
+          <input id="message-input" type="text" maxlength="2000" placeholder="Escribe un mensaje…" autocomplete="off" aria-label="Escribe un mensaje">
+          <button class="send-button" type="submit" aria-label="Enviar mensaje">➤</button>
+        </form>
+        <p class="demo-notice">Modo demostración: los mensajes se guardan solo en este dispositivo.</p>
+      </section>
+
+      <section class="view" id="view-estados" data-view="estados">
+        <div class="section-heading"><div><p class="eyebrow">DESCUBRE</p><h1>Comunidad</h1></div><button class="primary-button" id="new-status-button">＋ <span>Mi estado</span></button></div>
+        <div class="feature-hero community-hero"><div class="hero-orb">◎</div><p class="eyebrow">CONECTA A TU MANERA</p><h2>Tu círculo empieza aquí.</h2><p>Guarda contactos por su nombre de usuario y organiza tu lista. En esta versión, los contactos se guardan únicamente en este navegador; todavía no se envían solicitudes a cuentas remotas.</p><button class="primary-button full-width" id="new-chat-community">＋ Agregar persona</button></div>
+        <div class="community-tools"><label class="field-label" for="friend-search">Buscar en tus contactos</label><input id="friend-search" class="dialog-input" placeholder="Buscar por nombre o @usuario" autocomplete="off"><div class="community-list-heading"><h2>Mis contactos</h2><span id="friend-count" class="muted-inline">0</span></div><div id="friend-list" class="friend-results"></div></div>
+        <div class="own-status-card"><div class="status-ring"><div class="avatar avatar-large">L</div></div><div class="status-copy"><h2>Nota personal local</h2><p>Puedes guardar un estado en este dispositivo.</p></div><button class="icon-button" id="status-add" aria-label="Crear estado">＋</button></div>
+        <div class="status-list" id="status-list"></div>
+      </section>
+
+      <section class="view" id="view-play" data-view="play">
+        <div class="section-heading"><div><p class="eyebrow">JUEGA Y COMPARTE</p><h1>Games</h1></div></div>
+        <div class="feature-hero play-hero"><div class="hero-orb">▶</div><p class="eyebrow">MINIJUEGOS</p><h2>Una pausa para jugar.</h2><p>Estos juegos funcionan localmente en este dispositivo. Las salas multijugador llegarán cuando se conecte el backend.</p></div>
+        <div class="game-catalog"><button class="game-card" id="open-tictactoe"><span class="game-card-icon">×○</span><span><strong>Tres en raya</strong><small>2 jugadores · mismo dispositivo</small></span><span class="game-arrow">↗</span></button><button class="game-card" id="open-luzcamina"><span class="game-card-icon">✦</span><span><strong>Luz camina</strong><small>Rojo: reto · verde: verdad · vacío: sigue</small></span><span class="game-arrow">↗</span></button><button class="game-card" id="open-hangman"><span class="game-card-icon">⌁</span><span><strong>El ahorcado</strong><small>Descubre palabras por niveles</small></span><span class="game-arrow">↗</span></button><button class="game-card" id="open-word-complete"><span class="game-card-icon">Aa</span><span><strong>Completar palabras</strong><small>Rellena letras que faltan</small></span><span class="game-arrow">↗</span></button><button class="game-card" id="open-wordsearch"><span class="game-card-icon">▦</span><span><strong>Sopa de letras</strong><small>Encuentra todas las palabras</small></span><span class="game-arrow">↗</span></button><button class="game-card" id="open-truth-dare"><span class="game-card-icon">◇</span><span><strong>Verdad o reto</strong><small>Turnos y confirmación del compañero</small></span><span class="game-arrow">↗</span></button></div>
+        <p class="demo-notice">Las salas multijugador y las estadísticas compartidas necesitan conectar el servicio en línea.</p>
+      </section>
+
+
+
+      <section class="view" id="view-profile" data-view="profile">
+        <div class="section-heading"><div><p class="eyebrow">TU IDENTIDAD</p><h1>Perfil</h1></div><button class="icon-button" id="edit-profile-button" aria-label="Editar perfil">✎</button></div>
+        <div class="profile-card"><div class="profile-avatar">D</div><h2 id="profile-display-name">Daniel</h2><p id="profile-handle">@lida_user</p><p class="profile-bio">Construyendo conexiones, a mi manera.</p><button class="secondary-button" id="profile-edit-main">Editar perfil</button></div>
+        <div class="settings-list"><button class="settings-row" id="appearance-button"><span class="settings-icon">◐</span><span><strong>Apariencia</strong><small>Interfaz oscura y acentos neón</small></span><span>›</span></button><button class="settings-row" id="privacy-button"><span class="settings-icon">◇</span><span><strong>Privacidad y seguridad</strong><small>Controles y permisos</small></span><span>›</span></button><button class="settings-row" id="help-button"><span class="settings-icon">?</span><span><strong>Ayuda y guía</strong><small>Volver a ver la guía inicial</small></span><span>›</span></button><button class="settings-row" id="about-button"><span class="settings-icon">ⓘ</span><span><strong>Acerca de LIDA</strong><small>Información de la aplicación</small></span><span>›</span></button></div>
+      </section>
+
+      <section class="view" id="view-ai" data-view="ai">
+        <div class="section-heading"><div><p class="eyebrow">ASISTENTE PERSONAL</p><h1>LIDA AI</h1></div><span class="ai-pulse">✦</span></div>
+        <div class="ai-intro"><div class="ai-orb">✦</div><h2>¿Qué hacemos hoy?</h2><p>Tu espacio para ideas, respuestas y ayuda dentro de LIDA.</p></div>
+        <div class="suggestion-list"><button class="suggestion" data-prompt="Ayúdame a organizar mi día">Organizar mi día <span>↗</span></button><button class="suggestion" data-prompt="Dame ideas para una publicación">Ideas para una publicación <span>↗</span></button><button class="suggestion" data-prompt="Explícame cómo funciona LIDA">Conocer LIDA <span>↗</span></button></div>
+        <div id="ai-messages" class="ai-messages" aria-live="polite"></div>
+        <form id="ai-form" class="composer ai-composer"><input id="ai-input" type="text" maxlength="2000" placeholder="Pregúntale a LIDA AI…" aria-label="Mensaje para LIDA AI"><button class="send-button" type="submit" aria-label="Enviar pregunta">➤</button></form>
+        <p class="demo-notice">Prototipo local: la IA aún no está conectada a un servicio real.</p>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item" data-target="estados"><span class="nav-icon">◎</span><span>Comunidad</span></button>
+      <button class="nav-item active" data-target="chats"><span class="nav-icon">▤</span><span>Mensajes</span></button>
+      <button class="nav-item" data-target="play"><span class="nav-icon">▷</span><span>Games</span></button>
+      <button class="nav-item" data-target="profile"><span class="nav-icon">◌</span><span>Perfil</span></button>
+    </nav>
+  </div>
+
+  <div id="welcome-notice" class="welcome-notice" role="status"><strong>Conecta a tu manera.</strong><span>Bienvenido a LIDA</span></div>
+  <dialog id="app-dialog" class="app-dialog"><form method="dialog"><button class="dialog-close" aria-label="Cerrar">×</button></form><div id="dialog-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
