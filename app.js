@@ -68,6 +68,98 @@ function renderChats() {
   $("#chat-empty").classList.toggle("hidden", chats.length > 0);
 }
 
+async function openSupabaseChat(otherUserId, otherUserName, otherUserHandle = "") {
+  try {
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError) throw userError;
+    if (!user) throw new Error("Debes iniciar sesión.");
+
+    if (!otherUserId || otherUserId === user.id) {
+      throw new Error("El contacto seleccionado no es válido.");
+    }
+
+    // Buscar una conversación compartida existente.
+    const { data: myMemberships, error: membershipsError } =
+      await supabase
+        .from("conversation_participants")
+        .select("conversation_id")
+        .eq("user_id", user.id);
+
+    if (membershipsError) throw membershipsError;
+
+    const conversationIds = (myMemberships || [])
+      .map(item => item.conversation_id);
+
+    let conversationId = null;
+
+    if (conversationIds.length) {
+      const { data: sharedMemberships, error: sharedError } =
+        await supabase
+          .from("conversation_participants")
+          .select("conversation_id")
+          .eq("user_id", otherUserId)
+          .in("conversation_id", conversationIds);
+
+      if (sharedError) throw sharedError;
+
+      if (sharedMemberships?.length) {
+        const sharedIds = sharedMemberships.map(
+          item => item.conversation_id
+        );
+
+        const { data: conversations, error: conversationsError } =
+          await supabase
+            .from("conversations")
+            .select("id, is_group")
+            .in("id", sharedIds)
+            .eq("is_group", false);
+
+        if (conversationsError) throw conversationsError;
+
+        conversationId = conversations?.[0]?.id || null;
+      }
+    }
+
+    // Si no existe una conversación compartida, crearla.
+    if (!conversationId) {
+      conversationId = await createSupabaseConversation(otherUserId);
+    }
+
+    const chatId = `supabase-${conversationId}`;
+
+    let chat = state.chats.find(item => item.id === chatId);
+
+    if (!chat) {
+      chat = {
+        id: chatId,
+        conversationId,
+        contactId: otherUserId,
+        name: otherUserName || otherUserHandle || "Contacto",
+        userHandle: otherUserHandle,
+        lastMessage: "",
+        time: "",
+        unread: false,
+        favorite: false,
+        online: false,
+        system: false,
+        localOnly: false
+      };
+
+      state.chats.push(chat);
+    }
+
+    persist();
+    renderConversation(chatId);
+  } catch (error) {
+    console.error("Error al abrir el chat de Supabase:", error);
+    toast(error.message || "No se pudo abrir la conversación.");
+  }
+}
+
 
 async function createSupabaseConversation(otherUserId) {
   const {
@@ -154,6 +246,58 @@ function sendMessage(text) {
 
   persist();
   renderConversation(state.activeChatId);
+}
+
+async function loadSupabaseContacts() {
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+  if (!user) throw new Error("Debes iniciar sesión.");
+
+  const { data: contacts, error } = await supabase
+    .from("contacts")
+    .select("requester_id, addressee_id")
+    .eq("status", "accepted")
+    .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+
+  if (error) throw error;
+
+  const otherIds = [...new Set(
+    (contacts || []).map(contact =>
+      contact.requester_id === user.id
+        ? contact.addressee_id
+        : contact.requester_id
+    )
+  )].filter(id => id !== user.id);
+
+  if (!otherIds.length) {
+    state.directory = [];
+    persist();
+    renderFriends();
+    return [];
+  }
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .in("id", otherIds);
+
+  if (profilesError) throw profilesError;
+
+  state.directory = (profiles || []).map(profile => ({
+    id: profile.id,
+    name: profile.display_name || profile.username,
+    handle: "@" + profile.username,
+    source: "supabase"
+  }));
+
+  persist();
+  renderFriends();
+
+  return state.directory;
 }
 
 function renderFriends() {
