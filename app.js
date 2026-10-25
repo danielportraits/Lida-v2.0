@@ -842,21 +842,70 @@ function setupEvents() {
   loadContactRequests
 );
   $("#friend-search").addEventListener("input", renderFriends);
-  $("#friend-list").addEventListener("click", event => {
+ $("#friend-list").addEventListener("click", async event => {
     const remove = event.target.closest("[data-contact-remove]");
     const message = event.target.closest("[data-contact-chat]");
     if (remove) {
       state.directory = state.directory.filter(person => person.id !== remove.dataset.contactRemove);
       persist(); renderFriends(); toast("Contacto eliminado de este dispositivo.");
     }
-    if (message) {
-      const person = state.directory.find(item => item.id === message.dataset.contactChat);
-      if (!person) return;
-      let chat = state.chats.find(item => item.contactId === person.id);
-      if (!chat) {
-        chat = { id: `local-chat-${person.id}`, contactId: person.id, name: person.name, userHandle: person.handle, lastMessage: "Contacto local · no conectado", time: "Ahora", unread: false, favorite: false, online: false, system: false, localOnly: true };
-        state.chats.push(chat); state.messages[chat.id] = [{ text: `Este chat está preparado localmente para ${person.name} (${person.handle}). Los mensajes no se entregan a otra persona hasta que LIDA tenga un servidor conectado.`, mine: false, time: "Ahora", system: true }]; persist();
-      }
+    
+if (message) {
+  const person = state.directory.find(
+    item => item.id === message.dataset.contactChat
+  );
+
+  if (!person) return;
+
+  try {
+    if (person.source === "supabase") {
+      await openSupabaseChat(
+        person.id,
+        person.name,
+        person.handle
+      );
+      return;
+    }
+
+    // Mantener el comportamiento de los contactos locales.
+    let chat = state.chats.find(
+      item => item.contactId === person.id
+    );
+
+    if (!chat) {
+      chat = {
+        id: `local-chat-${person.id}`,
+        contactId: person.id,
+        name: person.name,
+        userHandle: person.handle,
+        lastMessage: "Contacto local · no conectado",
+        time: "Ahora",
+        unread: false,
+        favorite: false,
+        online: false,
+        system: false,
+        localOnly: true
+      };
+
+      state.chats.push(chat);
+
+      state.messages[chat.id] = [{
+        text: `Este chat está preparado localmente para ${person.name} (${person.handle}). Los mensajes no se entregan a otra persona.`,
+        mine: false,
+        time: "Ahora",
+        system: true
+      }];
+
+      persist();
+    }
+
+    renderConversation(chat.id);
+  } catch (error) {
+    console.error("Error al abrir la conversación:", error);
+    toast(error.message || "No se pudo abrir la conversación.");
+  }
+}
+
       renderConversation(chat.id);
     }
   });
