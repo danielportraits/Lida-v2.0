@@ -82,7 +82,33 @@ function renderConversation(chatId) {
   $("#message-list").scrollTop = $("#message-list").scrollHeight;
   persist();
   renderChats();
-  showView("conversation");
+ showView("conversation");
+  
+async function sendSupabaseMessage(conversationId, text) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error("Debes iniciar sesión para enviar mensajes.");
+  }
+
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: text,
+      message_type: "text"
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 }
 function sendMessage(text) {
   const trimmed = text.trim();
