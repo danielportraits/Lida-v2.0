@@ -67,32 +67,92 @@ function renderChats() {
   </button>`).join("");
   $("#chat-empty").classList.toggle("hidden", chats.length > 0);
 }
+
 function renderConversation(chatId) {
   const chat = state.chats.find(item => item.id === chatId);
   if (!chat) return;
+
   state.activeChatId = chatId;
   chat.unread = false;
+
   $("#conversation-name").textContent = chat.name;
   $("#conversation-avatar").textContent = initials(chat.name);
-  $("#conversation-status").textContent = chat.system ? "Asistente de bienvenida · local" : "Conversación local";
+  $("#conversation-status").textContent = chat.system
+    ? "Asistente de bienvenida · local"
+    : "Conversación local";
+
   const expirySeconds = Number(state.preferences.temporarySeconds || 0);
-  if (expirySeconds) state.messages[chatId] = (state.messages[chatId] || []).filter(message => !message.sentAt || Date.now() - new Date(message.sentAt).getTime() < expirySeconds * 1000);
+
+  if (expirySeconds) {
+    state.messages[chatId] = (state.messages[chatId] || []).filter(
+      message =>
+        !message.sentAt ||
+        Date.now() - new Date(message.sentAt).getTime() <
+          expirySeconds * 1000
+    );
+  }
+
   const messages = state.messages[chatId] || [];
-  $("#message-list").innerHTML = `<div class="date-divider"><span>HOY</span></div>` + messages.map((message, index) => `<div class="message ${message.mine ? "mine" : "theirs"}" data-message-index="${index}">${message.replyText ? `<div class="reply-quote">↳ ${esc(message.replyText)}</div>` : ""}${message.type === "voice" ? `<audio controls preload="metadata" src="${message.audio}"></audio><p>🎙 Nota de voz · ${esc(message.duration || "audio")}</p>` : `<p>${esc(message.text)}</p>`}<div class="message-tools"><time>${esc(message.time)}</time></div>${message.reaction ? `<span class="message-reaction">${esc(message.reaction)}</span>` : ""}</div>`).join("");
+
+  $("#message-list").innerHTML =
+    `<div class="date-divider"><span>HOY</span></div>` +
+    messages.map((message, index) => `
+      <div class="message ${message.mine ? "mine" : "theirs"}"
+           data-message-index="${index}">
+        ${message.replyText
+          ? `<div class="reply-quote">↳ ${esc(message.replyText)}</div>`
+          : ""}
+        ${message.type === "voice"
+          ? `<audio controls preload="metadata" src="${message.audio}"></audio>
+             <p>🎙 Nota de voz · ${esc(message.duration || "audio")}</p>`
+          : `<p>${esc(message.text || "")}</p>`}
+        <div class="message-tools">
+          <time>${esc(message.time || "")}</time>
+        </div>
+        ${message.reaction
+          ? `<span class="message-reaction">${esc(message.reaction)}</span>`
+          : ""}
+      </div>
+    `).join("");
+
   $("#message-list").scrollTop = $("#message-list").scrollHeight;
+
   persist();
   renderChats();
- showView("conversation");
-  
+  showView("conversation");
+}
+
 async function sendSupabaseMessage(conversationId, text) {
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser();
 
   if (userError || !user) {
     throw new Error("Debes iniciar sesión para enviar mensajes.");
   }
 
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: text,
+      message_type: "text"
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
+}
+
 async function createSupabaseConversation(otherUserId) {
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser();
 
   if (userError || !user) {
     throw new Error("Debes iniciar sesión para crear una conversación.");
@@ -112,9 +172,7 @@ async function createSupabaseConversation(otherUserId) {
     .select("id")
     .single();
 
-  if (conversationError) {
-    throw conversationError;
-  }
+  if (conversationError) throw conversationError;
 
   const { error: participantsError } = await supabase
     .from("conversation_participants")
@@ -123,55 +181,92 @@ async function createSupabaseConversation(otherUserId) {
       { conversation_id: conversation.id, user_id: otherUserId }
     ]);
 
-  if (participantsError) {
-    throw participantsError;
-  }
+  if (participantsError) throw participantsError;
 
   return conversation.id;
 }
 
-  const { data, error } = await supabase
-    .from("messages")
-    .insert({
-      conversation_id: conversationId,
-      sender_id: user.id,
-      content: text,
-      message_type: "text"
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-}
 function sendMessage(text) {
   const trimmed = text.trim();
   if (!trimmed || !state.activeChatId) return;
+
   const messages = state.messages[state.activeChatId] || [];
-  const time = new Date().toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" });
-  messages.push({ text: trimmed, mine: true, time, sentAt: new Date().toISOString(), ...(state.replyTo ? { replyText: state.replyTo.text || "Nota de voz" } : {}) });
+  const time = new Date().toLocaleTimeString("es-DO", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+  messages.push({
+    text: trimmed,
+    mine: true,
+    time,
+    sentAt: new Date().toISOString(),
+    ...(state.replyTo
+      ? { replyText: state.replyTo.text || "Nota de voz" }
+      : {})
+  });
+
   state.replyTo = null;
-  const replyBanner = $("#reply-banner"); if (replyBanner) replyBanner.remove();
+
+  const replyBanner = $("#reply-banner");
+  if (replyBanner) replyBanner.remove();
+
   state.messages[state.activeChatId] = messages;
-  const chat = state.chats.find(item => item.id === state.activeChatId);
-  if (chat) { chat.lastMessage = trimmed; chat.time = time; }
+
+  const chat = state.chats.find(
+    item => item.id === state.activeChatId
+  );
+
+  if (chat) {
+    chat.lastMessage = trimmed;
+    chat.time = time;
+  }
+
   persist();
   renderConversation(state.activeChatId);
 }
+
 function renderFriends() {
   const input = $("#friend-search");
-  const query = (input?.value || "").trim().toLowerCase().replace(/^@/, "");
-  const friends = state.directory.filter(person => `${person.name} ${person.handle}`.toLowerCase().includes(query));
+  const query = (input?.value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "");
+
+  const friends = state.directory.filter(person =>
+    `${person.name} ${person.handle}`.toLowerCase().includes(query)
+  );
+
   const list = $("#friend-list");
   const count = $("#friend-count");
+
   if (!list || !count) return;
+
   count.textContent = String(state.directory.length);
-  list.innerHTML = friends.length ? friends.map(person => `<article class="friend-result"><span class="avatar">${esc(initials(person.name))}</span><div class="friend-result-copy"><strong>${esc(person.name)}</strong><small>${esc(person.handle)} · contacto local</small></div><button class="secondary-button" data-contact-chat="${esc(person.id)}">Mensaje</button><button class="icon-button" data-contact-remove="${esc(person.id)}" aria-label="Eliminar ${esc(person.name)}">×</button></article>`).join("") : `<div class="friend-empty">${query ? "No hay contactos que coincidan con la búsqueda." : "Todavía no has agregado contactos. Pulsa «Agregar persona» para guardar uno."}</div>`;
+
+  list.innerHTML = friends.length
+    ? friends.map(person => `
+        <article class="friend-result">
+          <span class="avatar">${esc(initials(person.name))}</span>
+          <div class="friend-result-copy">
+            <strong>${esc(person.name)}</strong>
+            <small>${esc(person.handle)} · contacto local</small>
+          </div>
+          <button class="secondary-button"
+                  data-contact-chat="${esc(person.id)}">
+            Mensaje
+          </button>
+          <button class="icon-button"
+                  data-contact-remove="${esc(person.id)}"
+                  aria-label="Eliminar ${esc(person.name)}">×</button>
+        </article>
+      `).join("")
+    : `<div class="friend-empty">${
+        query
+          ? "No hay contactos que coincidan con la búsqueda."
+          : "Todavía no has agregado contactos. Pulsa «Agregar persona» para guardar uno."
+      }</div>`;
+}
 
 
 function openNewChat() {
