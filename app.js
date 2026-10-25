@@ -68,85 +68,6 @@ function renderChats() {
   $("#chat-empty").classList.toggle("hidden", chats.length > 0);
 }
 
-function renderConversation(chatId) {
-  const chat = state.chats.find(item => item.id === chatId);
-  if (!chat) return;
-
-  state.activeChatId = chatId;
-  chat.unread = false;
-
-  $("#conversation-name").textContent = chat.name;
-  $("#conversation-avatar").textContent = initials(chat.name);
-  $("#conversation-status").textContent = chat.system
-    ? "Asistente de bienvenida · local"
-    : "Conversación local";
-
-  const expirySeconds = Number(state.preferences.temporarySeconds || 0);
-
-  if (expirySeconds) {
-    state.messages[chatId] = (state.messages[chatId] || []).filter(
-      message =>
-        !message.sentAt ||
-        Date.now() - new Date(message.sentAt).getTime() <
-          expirySeconds * 1000
-    );
-  }
-
-  const messages = state.messages[chatId] || [];
-
-  $("#message-list").innerHTML =
-    `<div class="date-divider"><span>HOY</span></div>` +
-    messages.map((message, index) => `
-      <div class="message ${message.mine ? "mine" : "theirs"}"
-           data-message-index="${index}">
-        ${message.replyText
-          ? `<div class="reply-quote">↳ ${esc(message.replyText)}</div>`
-          : ""}
-        ${message.type === "voice"
-          ? `<audio controls preload="metadata" src="${message.audio}"></audio>
-             <p>🎙 Nota de voz · ${esc(message.duration || "audio")}</p>`
-          : `<p>${esc(message.text || "")}</p>`}
-        <div class="message-tools">
-          <time>${esc(message.time || "")}</time>
-        </div>
-        ${message.reaction
-          ? `<span class="message-reaction">${esc(message.reaction)}</span>`
-          : ""}
-      </div>
-    `).join("");
-
-  $("#message-list").scrollTop = $("#message-list").scrollHeight;
-
-  persist();
-  renderChats();
-  showView("conversation");
-}
-
-async function sendSupabaseMessage(conversationId, text) {
-  const {
-    data: { user },
-    error: userError
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    throw new Error("Debes iniciar sesión para enviar mensajes.");
-  }
-
-  const { data, error } = await supabase
-    .from("messages")
-    .insert({
-      conversation_id: conversationId,
-      sender_id: user.id,
-      content: text,
-      message_type: "text"
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  return data;
-}
 
 async function createSupabaseConversation(otherUserId) {
   const {
@@ -162,7 +83,8 @@ async function createSupabaseConversation(otherUserId) {
     throw new Error("Selecciona otro usuario válido.");
   }
 
-  const { data: conversation, error: conversationError } = await supabase
+  // Crear la conversación sin solicitar todavía una lectura.
+  const { data: inserted, error: insertError } = await supabase
     .from("conversations")
     .insert({
       created_by: user.id,
@@ -172,18 +94,26 @@ async function createSupabaseConversation(otherUserId) {
     .select("id")
     .single();
 
-  if (conversationError) throw conversationError;
+  if (insertError) {
+    console.error("Error al crear la conversación:", insertError);
+    throw insertError;
+  }
+
+  const conversationId = inserted.id;
 
   const { error: participantsError } = await supabase
     .from("conversation_participants")
     .insert([
-      { conversation_id: conversation.id, user_id: user.id },
-      { conversation_id: conversation.id, user_id: otherUserId }
+      { conversation_id: conversationId, user_id: user.id },
+      { conversation_id: conversationId, user_id: otherUserId }
     ]);
 
-  if (participantsError) throw participantsError;
+  if (participantsError) {
+    console.error("Error al añadir participantes:", participantsError);
+    throw participantsError;
+  }
 
-  return conversation.id;
+  return conversationId;
 }
 
 function sendMessage(text) {
