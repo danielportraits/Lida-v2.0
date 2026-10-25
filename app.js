@@ -33,6 +33,13 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const esc = value => String(value).replace(/[&<>"']/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[char]));
 const initials = name => name.trim().split(/\s+/).slice(0,2).map(part => part[0]).join("").toUpperCase();
 
+// Keep the legacy UI profile synchronized after Supabase authentication.
+window.addEventListener("lida:authenticated", () => {
+  state.profile = readJSON("lida.profile", { name: "", handle: "", bio: "" });
+  state.registered = true;
+  renderProfile();
+});
+
 function persist() {
   writeJSON("lida.chats", state.chats);
   writeJSON("lida.messages", state.messages);
@@ -397,6 +404,9 @@ window.addEventListener("load", () => {
   const splash = document.querySelector("#lida-splash");
   window.setTimeout(() => {
     if (splash) splash.classList.add("is-hidden");
+    // Supabase owns signup/signin. Do not open the old local-only username dialog
+    // while the Supabase gate is visible; it used to cover the real auth form.
+    if (document.querySelector("#supabase-auth-gate")) return;
     if (!state.registered || !state.profile.handle) openRegistration();
     else if (state.guideVersion < 4 || (!state.guideCompleted && !state.guideSkipped)) { state.guideStep = 0; state.guideSkipped = false; openGuide(); }
     showWelcomeToast();

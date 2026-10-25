@@ -1,4 +1,4 @@
-const CACHE_NAME = "lida-shell-v10";
+const CACHE_NAME = "lida-shell-v11";
 const APP_SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./app.js", "./demo-data.js", "./storage.js", "./supabase-auth.js", "./supabase-config.js",
