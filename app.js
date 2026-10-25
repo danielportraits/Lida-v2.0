@@ -385,6 +385,148 @@ function openNewChat() {
   });
 }
 
+async function loadContactRequests() {
+  const list = $("#contact-request-list");
+  const count = $("#contact-request-count");
+
+  if (!list || !count) return;
+
+  list.classList.remove("hidden");
+  list.textContent = "Cargando solicitudes…";
+
+  try {
+    const { data: { user }, error: authError } =
+      await supabase.auth.getUser();
+
+    if (authError) throw authError;
+    if (!user) throw new Error("Inicia sesión para ver tus solicitudes.");
+
+    const { data: requests, error } = await supabase
+      .from("contacts")
+      .select("id, requester_id, created_at")
+      .eq("addressee_id", user.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    count.textContent = String(requests.length);
+
+    if (!requests.length) {
+      list.textContent = "No tienes solicitudes pendientes.";
+      return;
+    }
+
+    const requesterIds = [...new Set(requests.map(r => r.requester_id))];
+
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, username, display_name")
+      .in("id", requesterIds);
+
+    if (profilesError) throw profilesError;
+
+    const profilesById = new Map(
+      profiles.map(profile => [profile.id, profile])
+    );
+
+    list.replaceChildren();
+
+    requests.forEach(request => {
+      const profile = profilesById.get(request.requester_id);
+      if (!profile) return;
+
+      const item = document.createElement("article");
+      item.className = "friend-result";
+
+      const info = document.createElement("div");
+      info.className = "friend-result-copy";
+
+      const name = document.createElement("strong");
+      name.textContent = profile.display_name || profile.username;
+
+      const username = document.createElement("small");
+      username.textContent = "@" + profile.username;
+
+      info.append(name, username);
+
+      const accept = document.createElement("button");
+      accept.className = "primary-button";
+      accept.textContent = "Aceptar";
+
+      const reject = document.createElement("button");
+      reject.className = "secondary-button";
+      reject.textContent = "Rechazar";
+
+      accept.addEventListener("click", async () => {
+        accept.disabled = true;
+        reject.disabled = true;
+
+        try {
+          const { data: updated, error: updateError } = await supabase
+            .from("contacts")
+            .update({ status: "accepted" })
+            .eq("id", request.id)
+            .eq("addressee_id", user.id)
+            .eq("status", "pending")
+            .select("id")
+            .maybeSingle();
+
+          if (updateError) throw updateError;
+          if (!updated) {
+            throw new Error("La solicitud ya no está pendiente o no se pudo actualizar.");
+          }
+
+         const conversationId = await createSupabaseConversation(
+  request.requester_id
+);
+
+console.log("Conversación creada:", conversationId);
+
+          if (conversationError) throw conversationError;
+
+          toast("Solicitud aceptada. Conversación creada.");
+          await loadContactRequests();
+        } catch (error) {
+          console.error("Error al aceptar solicitud:", error);
+          toast(error.message || "No se pudo aceptar la solicitud.");
+          accept.disabled = false;
+          reject.disabled = false;
+        }
+      });
+
+      reject.addEventListener("click", async () => {
+        accept.disabled = true;
+        reject.disabled = true;
+
+        try {
+          const { error: deleteError } = await supabase
+            .from("contacts")
+            .delete()
+            .eq("id", request.id)
+            .eq("addressee_id", user.id);
+
+          if (deleteError) throw deleteError;
+
+          toast("Solicitud rechazada.");
+          await loadContactRequests();
+        } catch (error) {
+          console.error("Error al rechazar solicitud:", error);
+          toast(error.message || "No se pudo rechazar la solicitud.");
+          accept.disabled = false;
+          reject.disabled = false;
+        }
+      });
+
+      item.append(info, accept, reject);
+      list.append(item);
+    });
+  } catch (error) {
+    console.error("Error al cargar solicitudes:", error);
+    list.textContent = error.message || "No se pudieron cargar las solicitudes.";
+  }
+}
+
 function openRegistration() {
   openDialog(`<div class="registration-mark"><img src="./lida-logo-original.png" alt="LIDA"></div><p class="eyebrow">BIENVENIDO A LIDA</p><h2>Personaliza tu cuenta</h2><p class="muted">Crea tu perfil con nombre visible y usuario único. Esta versión guarda la cuenta en este navegador; para que el usuario sea único en todos los dispositivos y pueda recibir mensajes reales hace falta conectar un servidor.</p><label class="field-label" for="register-name">Nombre para mostrar</label><input id="register-name" class="dialog-input" maxlength="50" placeholder="Tu nombre" autocomplete="name"><label class="field-label" for="register-handle">Nombre de usuario</label><div class="username-input-wrap"><span>@</span><input id="register-handle" class="dialog-input" maxlength="20" placeholder="tu_usuario" autocomplete="username" autocapitalize="none" spellcheck="false"></div><label class="field-label" for="register-bio">Biografía (opcional)</label><textarea id="register-bio" class="dialog-input" maxlength="160" rows="2" placeholder="Cuéntale algo a la comunidad"></textarea><button class="primary-button full-width" id="complete-registration">Guardar perfil y entrar</button>`);
   $("#complete-registration").addEventListener("click", () => {
@@ -582,6 +724,10 @@ function setupEvents() {
   $("#back-to-chats").addEventListener("click", () => showView("chats"));
   $("#new-chat-button").addEventListener("click", openNewChat);
   $("#new-chat-community").addEventListener("click", openNewChat);
+  $("#view-contact-requests")?.addEventListener(
+  "click",
+  loadContactRequests
+);
   $("#friend-search").addEventListener("input", renderFriends);
   $("#friend-list").addEventListener("click", event => {
     const remove = event.target.closest("[data-contact-remove]");
